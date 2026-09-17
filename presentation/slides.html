@@ -331,11 +331,12 @@
       <ol class="agenda-list">
         <li><span class="a-num">01</span> Why these two benchmarks<span class="a-tag badge sw">setup</span></li>
         <li><span class="a-num">02</span> Environment: getting <code>perf</code> to work on a KVM guest<span class="a-tag badge sw">setup</span></li>
-        <li><span class="a-num">03</span> nbody &mdash; profile, three optimization attempts, one winner<span class="a-tag badge sw">software</span></li>
-        <li><span class="a-num">04</span> raytrace &mdash; profile, <code>__slots__</code> fix<span class="a-tag badge sw">software</span></li>
-        <li><span class="a-num">05</span> The measurement-noise detour<span class="a-tag badge sw">rigor</span></li>
-        <li><span class="a-num">06</span> Hardware accelerator: design, interface, cycle-counted estimate<span class="a-tag badge hw">hardware</span></li>
-        <li><span class="a-num">07</span> Results &amp; takeaways<span class="a-tag badge hw">close</span></li>
+        <li><span class="a-num">03</span> How <code>perf</code> sampling actually works<span class="a-tag badge sw">method</span></li>
+        <li><span class="a-num">04</span> nbody &mdash; profile, finding&rarr;code, three attempts, one winner<span class="a-tag badge sw">software</span></li>
+        <li><span class="a-num">05</span> raytrace &mdash; profile, finding&rarr;code, <code>__slots__</code> fix<span class="a-tag badge sw">software</span></li>
+        <li><span class="a-num">06</span> The measurement-noise detour<span class="a-tag badge sw">rigor</span></li>
+        <li><span class="a-num">07</span> Hardware accelerator: design, FSM, interface, estimate<span class="a-tag badge hw">hardware</span></li>
+        <li><span class="a-num">08</span> Results, takeaways &amp; Q&amp;A prep<span class="a-tag badge hw">close</span></li>
       </ol>
     </div>
   </section>
@@ -392,9 +393,34 @@ dependencies = [<span class="c2">"pyperf"</span>]
     </div>
   </section>
 
+  <!-- 4b: HOW PROFILING WORKS -->
+  <section class="slide" data-tag="Method">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Method</span><span>04</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>How <code>perf</code> actually works</h2>
+        <p class="body-text"><code>perf record</code> doesn't read source code. While the program runs, it interrupts the CPU <b>999 times a second</b> and asks: "what function is executing right now, and what's the call stack?" &mdash; then writes every snapshot to <code>perf.data</code>.</p>
+        <p class="body-text">If 38% of ~49,000 snapshots caught the program inside one function, that's strong statistical evidence ~38% of runtime is spent there. No magic &mdash; repeated sampling.</p>
+      </div>
+      <div class="term">
+        <div class="term-bar sw">reading perf_report.txt</div>
+        <pre><span class="c1">          Children      Self</span>
+<span class="c3">Children</span> = time in fn + everything it called
+<span class="c3">Self</span>     = time in JUST this function
+
+Sorted by Self, high to low. Skip
+generic entries (_PyEval_EvalFrame
+Default = "Python running" in
+general). Collect NAMED entries
+(list_ass_item, float_mul, ...)
+&rarr; those are actionable.</pre>
+      </div>
+    </div>
+  </section>
+
   <!-- 5: NBODY OVERVIEW -->
   <section class="slide" data-tag="nbody">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody</span><span>04</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody</span><span>05</span></div>
     <div class="slide-body cols c2">
       <div>
         <h2>What <code>nbody</code> does</h2>
@@ -420,7 +446,7 @@ dependencies = [<span class="c2">"pyperf"</span>]
 
   <!-- 6: NBODY PROFILE -->
   <section class="slide" data-tag="nbody">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; profiling</span><span>05</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; profiling</span><span>06</span></div>
     <div class="slide-body cols c2 rev">
       <div class="flame-frame">
         <div class="panel-head"><span>nbody_flamegraph.svg</span><span>perf record -e cpu-clock, 49K samples</span></div>
@@ -438,9 +464,37 @@ dependencies = [<span class="c2">"pyperf"</span>]
     </div>
   </section>
 
+  <!-- 6b: NBODY MATCHING FINDINGS TO CODE -->
+  <section class="slide" data-tag="nbody">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; from finding to code</span><span>07</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>How do we know it's <code>advance()</code>?</h2>
+        <p class="body-text">perf's call-graph shows raw hex addresses, not "advance()" &mdash; CPython's bytecode loop breaks stack unwinding for Python-level frames. So this is an <b>inference</b>, not a direct readout:</p>
+        <ul class="bullets">
+          <li><code>list_ass_item</code> <span class="muted-inline">fires on <code>container[i] = value</code></span></li>
+          <li><b>Volume check:</b> <span class="muted-inline"><code>report_energy()</code> runs 2&times; per call &mdash; can't explain multi-percent cost. Only <code>advance()</code>'s 200,000-execution inner loop can.</span></li>
+        </ul>
+      </div>
+      <div class="term">
+        <div class="term-bar sw">advance() &mdash; the exact lines</div>
+        <pre>v1[0] -= dx * b2m   <span class="c3"># list_ass_item</span>
+v1[1] -= dy * b2m   <span class="c3"># list_ass_item</span>
+v1[2] -= dz * b2m   <span class="c3"># list_ass_item</span>
+v2[0] += dx * b1m   <span class="c3"># list_ass_item</span>
+v2[1] += dy * b1m   <span class="c3"># list_ass_item</span>
+v2[2] += dz * b1m   <span class="c3"># list_ass_item</span>
+
+<span class="c2">6 writes &times; 10 pairs &times; 20,000
+= 1.2M indexed writes</span>
+<span class="c2">(+ 3 more per body in the pos. pass)</span></pre>
+      </div>
+    </div>
+  </section>
+
   <!-- 7: NBODY OPTIMIZATION ATTEMPTS -->
   <section class="slide" data-tag="nbody">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; optimization</span><span>06</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; optimization</span><span>08</span></div>
     <div class="slide-body">
       <h2>Three attempts, measured &mdash; not assumed</h2>
       <div class="panel">
@@ -474,7 +528,7 @@ dependencies = [<span class="c2">"pyperf"</span>]
 
   <!-- 8: NBODY RESULT -->
   <section class="slide" data-tag="nbody">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; result</span><span>07</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; result</span><span>09</span></div>
     <div class="slide-body">
       <h2>32.9% faster, verified correct</h2>
       <div class="kpi-row">
@@ -499,7 +553,7 @@ OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span cla
 
   <!-- 9: RAYTRACE OVERVIEW -->
   <section class="slide" data-tag="raytrace">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace</span><span>08</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace</span><span>10</span></div>
     <div class="slide-body cols c2">
       <div>
         <h2>What <code>raytrace</code> does</h2>
@@ -521,7 +575,7 @@ OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span cla
 
   <!-- 10: RAYTRACE PROFILE -->
   <section class="slide" data-tag="raytrace">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; profiling</span><span>09</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; profiling</span><span>11</span></div>
     <div class="slide-body cols c2 rev">
       <div class="flame-frame">
         <div class="panel-head"><span>raytrace_flamegraph.svg</span><span>209K samples</span></div>
@@ -539,9 +593,37 @@ OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span cla
     </div>
   </section>
 
+  <!-- 9b: RAYTRACE MATCHING FINDINGS TO CODE -->
+  <section class="slide" data-tag="raytrace">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; from finding to code</span><span>12</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>A genuinely different fingerprint</h2>
+        <p class="body-text"><code>frame_dealloc</code>, <code>_PyEval_Vector</code>, <code>_PyDict_GetItemHint</code> &mdash; <b>none of these appeared in nbody's profile at all.</b> Same symptom (slow Python), different root cause.</p>
+        <ul class="bullets">
+          <li><code>_PyDict_GetItemHint</code> <span class="muted-inline">fires on <code>self.x</code> &mdash; only possible because <code>Vector</code> has no <code>__slots__</code></span></li>
+          <li><code>frame_dealloc</code> / <code>_PyEval_Vector</code> <span class="muted-inline">fire on every function call &mdash; <code>.dot()</code>, <code>.cross()</code>, <code>.normalized()</code> each pay this, thousands of times per pixel across recursion + shadow rays</span></li>
+        </ul>
+      </div>
+      <div class="term">
+        <div class="term-bar sw">Vector.__init__</div>
+        <pre><span class="c1">class</span> Vector(object):
+    <span class="c3"># no __slots__ here (original)</span>
+    def __init__(self, x, y, z):
+        self.x = x   <span class="c3"># dict write</span>
+        self.y = y   <span class="c3"># dict write</span>
+        self.z = z   <span class="c3"># dict write</span>
+
+<span class="c2">.dot() alone reads self.x/y/z
+3x -- called on every ray-sphere
+test, every pixel, every bounce</span></pre>
+      </div>
+    </div>
+  </section>
+
   <!-- 11: RAYTRACE RESULT -->
   <section class="slide" data-tag="raytrace">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; optimization</span><span>10</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; optimization</span><span>13</span></div>
     <div class="slide-body cols c2">
       <div>
         <h2>One line per class: <code>__slots__</code></h2>
@@ -566,7 +648,7 @@ OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span cla
 
   <!-- 12: MEASUREMENT NOISE DETOUR -->
   <section class="slide" data-tag="Rigor">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Rigor check</span><span>11</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Rigor check</span><span>14</span></div>
     <div class="slide-body cols c2">
       <div>
         <h2>When the numbers looked wrong</h2>
@@ -590,7 +672,7 @@ OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span cla
 
   <!-- 13: HW ARCHITECTURE -->
   <section class="slide" data-tag="Hardware">
-    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware accelerator &mdash; nbody</span><span>12</span></div>
+    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware accelerator &mdash; nbody</span><span>15</span></div>
     <div class="slide-body cols c2 rev">
       <div class="diagram-frame">
         <object data="nbody_block_diagram.svg" type="image/svg+xml" aria-label="Pairwise Gravity Accelerator block diagram"></object>
@@ -604,9 +686,34 @@ OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span cla
     </div>
   </section>
 
+  <!-- 12b: NBODY_CORE STATE MACHINE -->
+  <section class="slide" data-tag="Hardware">
+    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware &mdash; the conductor</span><span>16</span></div>
+    <div class="slide-body">
+      <h2><code>nbody_core</code> &mdash; the control state machine</h2>
+      <p class="lede">Same two-pass structure as Python's <code>advance()</code> &mdash; just run as a circuit, not interpreted.</p>
+      <div class="term">
+        <div class="term-bar hw">hw/nbody_accelerator.sv &mdash; state sequence, per pair</div>
+        <pre>S_IDLE    <span class="c3">wait for host START</span>
+S_LOAD_I / S_LOAD_J    <span class="c3">read body i, j from body_regfile</span>
+S_SUB     dx,dy,dz = pos_i - pos_j
+S_SQ      dx&sup2;, dy&sup2;, dz&sup2;         <span class="c3">(fp_mul, 1 cyc)</span>
+S_SUM     d2 = dx&sup2;+dy&sup2;+dz&sup2;
+S_SQRT    &radic;d2                    <span class="c3">(fp_sqrt, 17 cyc)</span>
+S_DENOM   denom = d2 &middot; &radic;d2
+S_DIV     mag = dt / denom          <span class="c3">(fp_div, 48 cyc)</span>
+S_MASSMUL b_i = m_j&middot;mag, b_j = m_i&middot;mag
+S_VELUPD  write vel_i, vel_j back
+S_NEXTPAIR  &rarr; pair_idx++, loop (&times;10)
+S_POSUPD  &rarr; update all 5 positions
+S_NEXTITER  &rarr; iter--, loop (&times;20,000) or DONE</pre>
+      </div>
+    </div>
+  </section>
+
   <!-- 14: HW SPEC -->
   <section class="slide" data-tag="Hardware">
-    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware &mdash; interface &amp; estimate</span><span>13</span></div>
+    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware &mdash; interface &amp; estimate</span><span>17</span></div>
     <div class="slide-body cols c2">
       <div class="panel">
         <div class="panel-head">Register map</div>
@@ -641,7 +748,7 @@ vs. optimized software: <span class="c3">~130-150ms</span>
 
   <!-- 15: RESULTS SUMMARY -->
   <section class="slide" data-tag="Results">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Summary</span><span>14</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Summary</span><span>18</span></div>
     <div class="slide-body">
       <h2>Results</h2>
       <div class="kpi-row">
@@ -669,9 +776,25 @@ vs. optimized software: <span class="c3">~130-150ms</span>
     </div>
   </section>
 
+  <!-- 14b: Q&amp;A PREP -->
+  <section class="slide" data-tag="Q&amp;A prep">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Be ready for</span><span>19</span></div>
+    <div class="slide-body">
+      <h2>Likely questions</h2>
+      <ul class="bullets" style="font-size:16.5px;">
+        <li><b>"How does perf actually work?"</b> <span class="muted-inline">&mdash; sampling: interrupts the CPU hundreds of times/sec, records what's executing.</span></li>
+        <li><b>"How did you know it was inside <code>advance()</code>?"</b> <span class="muted-inline">&mdash; perf's Python-level call graph is broken (computed gotos); inferred from execution-count volume + matching named functions to code patterns.</span></li>
+        <li><b>"Why did numpy barely help?"</b> <span class="muted-inline">&mdash; only 10 elements; numpy's per-call overhead cancels the benefit at that scale.</span></li>
+        <li><b>"Why two completely different fixes for two Python benchmarks?"</b> <span class="muted-inline">&mdash; different root causes: indexed writes (nbody) vs. dict-backed attributes + call overhead (raytrace).</span></li>
+        <li><b>"Why accelerate the whole loop, not one operation?"</b> <span class="muted-inline">&mdash; the cost is per-operation software dispatch, paid 1.5M times; one fast multiply doesn't remove that.</span></li>
+        <li><b>"How solid is the 76ms hardware estimate?"</b> <span class="muted-inline">&mdash; direct cycle count from the design's own stated latencies, not synthesized/timed &mdash; 200MHz is an assumption, not measured.</span></li>
+      </ul>
+    </div>
+  </section>
+
   <!-- 16: THANK YOU -->
   <section class="slide title-slide" data-tag="Close">
-    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Questions</span><span>15</span></div>
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Questions</span><span>20</span></div>
     <div class="slide-body" style="justify-content:center;">
       <h1 style="font-size:clamp(44px,7vw,88px);">Questions</h1>
       <p class="subtitle">Repo, reports, flame graphs, and the accelerator RTL are all at:</p>
