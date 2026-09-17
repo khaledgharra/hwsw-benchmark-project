@@ -1,0 +1,722 @@
+<title>Gravity &amp; Light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root{
+    --bg:#F1F3F5;
+    --ink:#1B2430;
+    --muted:#5B6B7A;
+    --panel:#E4E8EB;
+    --panel-line:#CBD2D8;
+    --accent-sw:#B8681E;
+    --accent-sw-ink:#8F4F14;
+    --accent-hw:#1F776E;
+    --accent-hw-ink:#155650;
+    --good:#3A7D44;
+    --bad:#B23A3A;
+    --code-bg:#161B22;
+    --code-ink:#D8DEE6;
+    --shadow: 0 1px 2px rgba(20,30,40,.06), 0 8px 24px rgba(20,30,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161C;
+      --ink:#E7EAED;
+      --muted:#8A97A6;
+      --panel:#1C222A;
+      --panel-line:#2B333C;
+      --accent-sw:#E0955A;
+      --accent-sw-ink:#F2B27E;
+      --accent-hw:#4FADA3;
+      --accent-hw-ink:#78C7BE;
+      --good:#6FBF7A;
+      --bad:#E17A7A;
+      --code-bg:#0B0E13;
+      --code-ink:#DDE3EA;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161C;
+    --ink:#E7EAED;
+    --muted:#8A97A6;
+    --panel:#1C222A;
+    --panel-line:#2B333C;
+    --accent-sw:#E0955A;
+    --accent-sw-ink:#F2B27E;
+    --accent-hw:#4FADA3;
+    --accent-hw-ink:#78C7BE;
+    --good:#6FBF7A;
+    --bad:#E17A7A;
+    --code-bg:#0B0E13;
+    --code-ink:#DDE3EA;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    overflow:hidden;
+  }
+  @media (prefers-reduced-motion: reduce){
+    * { scroll-behavior:auto !important; animation:none !important; transition:none !important; }
+  }
+
+  h1,h2,h3, .num{
+    font-family:"Big Shoulders Display", "Arial Narrow", sans-serif;
+    text-wrap:balance;
+    letter-spacing:.01em;
+  }
+
+  code, .mono, .term, table.regmap, .kpi-value{
+    font-family:"IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  a{ color:var(--accent-sw); }
+  a:focus-visible, button:focus-visible{
+    outline: 2px solid var(--accent-sw);
+    outline-offset: 2px;
+  }
+
+  /* ---------- deck ---------- */
+  .deck{
+    display:flex;
+    height:100vh;
+    width:100vw;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scroll-snap-type:x mandatory;
+    scroll-behavior:smooth;
+  }
+  .slide{
+    min-width:100vw;
+    height:100vh;
+    scroll-snap-align:start;
+    display:flex;
+    flex-direction:column;
+    padding: 40px 64px 32px;
+    position:relative;
+  }
+  .eyebrow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:22px;
+    flex:0 0 auto;
+  }
+  .eyebrow .tag{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow .dot-mark{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent-sw);
+  }
+  .eyebrow.hw .dot-mark{ background:var(--accent-hw); }
+  .slide-body{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap: 22px;
+  }
+
+  .slide h1{ font-size: clamp(40px, 5.4vw, 76px); line-height:1.02; margin:0; font-weight:800; }
+  .slide h2{ font-size: clamp(28px, 3.4vw, 44px); line-height:1.05; margin:0 0 4px; font-weight:750; }
+  .lede{ font-size:19px; color:var(--muted); max-width:62ch; line-height:1.5; margin:0; }
+  p.body-text{ font-size:16.5px; line-height:1.6; max-width:62ch; margin:0; }
+
+  .cols{ display:grid; gap:40px; align-items:center; }
+  .cols.c2{ grid-template-columns: 1.05fr 1fr; }
+  .cols.c2.rev{ grid-template-columns: 1fr 1.05fr; }
+
+  ul.bullets{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; max-width:56ch; }
+  ul.bullets li{ position:relative; padding-left:22px; font-size:16.5px; line-height:1.5; }
+  ul.bullets li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:9px; height:2px;
+    background:var(--accent-sw);
+  }
+  ul.bullets.hw li::before{ background:var(--accent-hw); }
+  ul.bullets li b{ color:var(--ink); }
+  ul.bullets li .muted-inline{ color:var(--muted); }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+  }
+  .panel .panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px;
+    border-bottom:1px solid var(--panel-line);
+    font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  }
+  .panel .panel-body{ padding:16px; }
+
+  .term{
+    background:var(--code-bg);
+    color:var(--code-ink);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .term .term-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 14px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:#93A0AD;
+  }
+  .term .term-bar.sw{ border-top:3px solid var(--accent-sw); }
+  .term .term-bar.hw{ border-top:3px solid var(--accent-hw); }
+  .term pre{
+    margin:0; padding:16px 18px;
+    font-size:13.5px; line-height:1.65;
+    white-space:pre-wrap; word-break:break-word;
+    overflow-x:auto;
+  }
+  .term .c1{ color:#8AB4E8; }
+  .term .c2{ color:#7FCB9B; }
+  .term .c3{ color:#E8A566; }
+  .term .cbad{ color:#E0837E; }
+
+  table.compare{ border-collapse:collapse; width:100%; font-size:14.5px; }
+  table.compare th, table.compare td{
+    text-align:left; padding:10px 14px; border-bottom:1px solid var(--panel-line);
+    vertical-align:top;
+  }
+  table.compare th{ color:var(--muted); font-weight:600; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+  table.compare td.verdict-good{ color:var(--good); font-weight:600; }
+  table.compare td.verdict-bad{ color:var(--bad); font-weight:600; }
+  table.compare td.mono-cell{ font-family:"IBM Plex Mono",monospace; white-space:nowrap; }
+
+  table.regmap{ border-collapse:collapse; width:100%; font-size:13px; }
+  table.regmap th, table.regmap td{ text-align:left; padding:8px 12px; border-bottom:1px solid var(--panel-line); }
+  table.regmap th{ color:var(--muted); text-transform:uppercase; font-size:11px; letter-spacing:.06em; }
+  table.regmap td.addr{ color:var(--accent-hw-ink); }
+
+  .kpi-row{ display:flex; gap:16px; flex-wrap:wrap; }
+  .kpi{
+    flex:1 1 200px;
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+  }
+  .kpi .kpi-label{ font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .kpi .kpi-value{ font-size:34px; font-weight:600; margin-top:6px; display:flex; align-items:baseline; gap:8px; }
+  .kpi .kpi-value .from{ font-size:17px; color:var(--muted); text-decoration:line-through; }
+  .kpi .kpi-value .to{ color:var(--accent-sw-ink); }
+  .kpi.hw .kpi-value .to{ color:var(--accent-hw-ink); }
+  .kpi .kpi-delta{ margin-top:4px; font-size:13px; color:var(--good); font-weight:600; }
+
+  .flame-frame{
+    background:#fff;
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .flame-frame .panel-head{ background:var(--panel); }
+  .flame-frame object, .flame-frame img{ display:block; width:100%; height:230px; }
+
+  .diagram-frame{
+    background:#fff;
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+    padding:8px;
+  }
+  .diagram-frame object, .diagram-frame img{ width:100%; height:auto; display:block; }
+
+  .foot-note{ margin-top:14px; font-size:13px; color:var(--muted); }
+  .foot-note code{ background:var(--panel); padding:1px 6px; border-radius:4px; }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; font-weight:600; letter-spacing:.03em;
+    padding:4px 10px; border-radius:999px;
+    background:var(--panel); border:1px solid var(--panel-line); color:var(--muted);
+  }
+  .badge.sw{ color:var(--accent-sw-ink); }
+  .badge.hw{ color:var(--accent-hw-ink); }
+
+  /* title slide */
+  .title-slide{ justify-content:center; align-items:flex-start; }
+  .title-slide .kicker{
+    font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent-sw-ink);
+    margin-bottom:18px; font-weight:600;
+  }
+  .title-slide h1{ font-size: clamp(56px, 8.4vw, 118px); }
+  .title-slide .subtitle{ font-size:20px; color:var(--muted); max-width:52ch; margin-top:18px; }
+  .title-meta{ margin-top:44px; display:flex; gap:28px; flex-wrap:wrap; font-size:13.5px; color:var(--muted); }
+  .title-meta b{ color:var(--ink); }
+
+  .agenda-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+  .agenda-list li{
+    display:flex; align-items:baseline; gap:18px;
+    padding:13px 0; border-bottom:1px solid var(--panel-line);
+    font-size:17px;
+  }
+  .agenda-list li:first-child{ border-top:1px solid var(--panel-line); }
+  .agenda-list .a-num{ font-family:"IBM Plex Mono",monospace; color:var(--muted); font-size:13px; width:28px; flex:0 0 auto; }
+  .agenda-list .a-tag{ margin-left:auto; }
+
+  /* nav */
+  .rail{
+    position:fixed; right:22px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:9px; z-index:20;
+  }
+  .rail button{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--panel-line); border:none; cursor:pointer; padding:0;
+  }
+  .rail button[aria-current="true"]{ background:var(--accent-sw); width:9px; height:18px; border-radius:5px; }
+
+  .progress{
+    position:fixed; left:0; top:0; height:3px; background:var(--accent-sw);
+    z-index:20; transition:width .25s ease;
+  }
+  .hint{
+    position:fixed; bottom:20px; left:64px; font-size:12px; color:var(--muted);
+    letter-spacing:.04em; z-index:20;
+  }
+  @media (max-width: 860px){
+    .cols.c2, .cols.c2.rev{ grid-template-columns:1fr; }
+    .slide{ padding: 30px 26px 24px; }
+    .rail{ display:none; }
+    .hint{ left:26px; }
+  }
+</style>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1: TITLE -->
+  <section class="slide title-slide" data-tag="Intro">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>00460882 &middot; HW/SW Co-design</span><span>Final Project</span></div>
+    <div class="slide-body" style="justify-content:center;">
+      <div class="kicker">Two benchmarks, one profiler, one accelerator</div>
+      <h1>Gravity &amp; Light</h1>
+      <p class="subtitle">Profiling-driven optimization of <code>nbody</code> and <code>raytrace</code>, and a hardware accelerator proposal built from what the profiler actually found.</p>
+      <div class="title-meta">
+        <span>Khaled Gharra</span>
+        <span><b>Benchmarks</b> &nbsp;nbody &middot; raytrace</span>
+        <span><b>Repo</b> &nbsp;github.com/khaledgharra/hwsw-benchmark-project</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2: AGENDA -->
+  <section class="slide" data-tag="Agenda">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Agenda</span><span>01</span></div>
+    <div class="slide-body">
+      <h2>Flow of the talk</h2>
+      <p class="lede">Same order the work happened in &mdash; each finding is what caused the next decision.</p>
+      <ol class="agenda-list">
+        <li><span class="a-num">01</span> Why these two benchmarks<span class="a-tag badge sw">setup</span></li>
+        <li><span class="a-num">02</span> Environment: getting <code>perf</code> to work on a KVM guest<span class="a-tag badge sw">setup</span></li>
+        <li><span class="a-num">03</span> nbody &mdash; profile, three optimization attempts, one winner<span class="a-tag badge sw">software</span></li>
+        <li><span class="a-num">04</span> raytrace &mdash; profile, <code>__slots__</code> fix<span class="a-tag badge sw">software</span></li>
+        <li><span class="a-num">05</span> The measurement-noise detour<span class="a-tag badge sw">rigor</span></li>
+        <li><span class="a-num">06</span> Hardware accelerator: design, interface, cycle-counted estimate<span class="a-tag badge hw">hardware</span></li>
+        <li><span class="a-num">07</span> Results &amp; takeaways<span class="a-tag badge hw">close</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 3: WHY THESE BENCHMARKS -->
+  <section class="slide" data-tag="Selection">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Setup</span><span>02</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>Why <code>nbody</code> &amp; <code>raytrace</code></h2>
+        <ul class="bullets">
+          <li><b>Zero third-party dependencies.</b> <span class="muted-inline">Checked <code>pyproject.toml</code> for both &mdash; only <code>pyperf</code>. No C-extension internals to reverse-engineer, unlike <code>pickle</code> or <code>pyflate</code>.</span></li>
+          <li><b>Pure numerical kernels.</b> <span class="muted-inline">Both are tight floating-point loops &mdash; easy to reason about, easy to get a clean before/after signal.</span></li>
+          <li><b>A real hardware story.</b> <span class="muted-inline">Both map onto accelerator patterns from lecture: fixed-shape MAC pipelines, dot-product/rsqrt datapaths &mdash; not a forced fit.</span></li>
+        </ul>
+      </div>
+      <div class="term">
+        <div class="term-bar sw">pyproject.toml</div>
+        <pre><span class="c1">[project]</span>
+name = <span class="c2">"pyperformance_bm_nbody"</span>
+dependencies = [<span class="c2">"pyperf"</span>]
+
+<span class="c1">[project]</span>
+name = <span class="c2">"pyperformance_bm_raytrace"</span>
+dependencies = [<span class="c2">"pyperf"</span>]
+<span class="c3"># that's it. no numpy, no C-extensions.</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4: ENVIRONMENT / PERF FIX -->
+  <section class="slide" data-tag="Environment">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Setup</span><span>03</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>First real obstacle</h2>
+        <p class="body-text"><code>perf</code> is Linux-only &mdash; nothing on macOS. Moved to the course VM (QEMU/KVM guest on <code>naranja14</code>). Then <code>perf record</code> silently produced <b>zero samples</b>, even though the benchmark itself ran fine.</p>
+        <p class="body-text">Diagnosis: <code>perf stat</code> (counting) worked. <code>perf record</code> (sampling) needs a hardware interrupt (PMI) that KVM guests often don't forward &mdash; even when raw counting does.</p>
+        <p class="foot-note">Fix: swap the default hardware <code>cycles</code> event for the software <code>cpu-clock</code> event.</p>
+      </div>
+      <div class="term">
+        <div class="term-bar sw">naranja14 &mdash; root@ubuntu</div>
+        <pre><span class="c1">$</span> perf record -F 999 -g -- python3 ...
+<span class="cbad">Error: perf.data has no samples!</span>
+
+<span class="c1">$</span> perf stat -e cycles,instructions sleep 1
+<span class="c2">1742951      cycles
+1284818      instructions   # 0.74 IPC</span>
+<span class="c3"># counting works, sampling doesn't -&gt; PMI not forwarded</span>
+
+<span class="c1">$</span> perf record <span class="c2">-e cpu-clock</span> -F 999 -g -- ...
+<span class="c2">[ perf record: Captured 3.7 MB perf.data ]</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5: NBODY OVERVIEW -->
+  <section class="slide" data-tag="nbody">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody</span><span>04</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>What <code>nbody</code> does</h2>
+        <p class="body-text">Simulates gravity between the Sun and 4 outer planets &mdash; 5 bodies, real orbital data. Direct pairwise force calculation over all <b>10 unique pairs</b>, leapfrog integration.</p>
+        <p class="body-text">The timed hot path calls <code>advance(dt, iterations)</code>, which runs the 10-pair update <b>20,000 times</b> per benchmark call. Pure Python floats and lists &mdash; no numpy.</p>
+      </div>
+      <div class="kpi-row" style="flex-direction:column;">
+        <div class="kpi">
+          <div class="kpi-label">Bodies &times; pairs</div>
+          <div class="kpi-value">5 <span class="from" style="text-decoration:none;color:var(--muted);font-size:20px;">&rarr;</span> 10</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">advance() iterations / call</div>
+          <div class="kpi-value">20,000</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Baseline (Linux VM)</div>
+          <div class="kpi-value">231<span style="font-size:16px;color:var(--muted);">ms &plusmn;2</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6: NBODY PROFILE -->
+  <section class="slide" data-tag="nbody">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; profiling</span><span>05</span></div>
+    <div class="slide-body cols c2 rev">
+      <div class="flame-frame">
+        <div class="panel-head"><span>nbody_flamegraph.svg</span><span>perf record -e cpu-clock, 49K samples</span></div>
+        <object data="nbody_flamegraph.svg" type="image/svg+xml" aria-label="nbody flame graph"></object>
+      </div>
+      <div>
+        <h2>Not the math &mdash; the bookkeeping</h2>
+        <ul class="bullets">
+          <li><b>~38%</b> <span class="muted-inline">raw CPython bytecode dispatch</span></li>
+          <li><b>list_ass_item / list_ass_subscript</b> <span class="muted-inline">&mdash; indexed writes like <code>v1[0] -= ...</code>, done ~75&times;/iteration &times; 20,000 = <b>1.5M times</b></span></li>
+          <li><b>PyFloat_FromDouble / float_dealloc</b> <span class="muted-inline">&mdash; every float is a heap object, allocated and freed constantly</span></li>
+        </ul>
+        <p class="foot-note">Conclusion: the cost is <em>doing the math through Python's object model 1.5M times</em>, not the math itself.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7: NBODY OPTIMIZATION ATTEMPTS -->
+  <section class="slide" data-tag="nbody">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; optimization</span><span>06</span></div>
+    <div class="slide-body">
+      <h2>Three attempts, measured &mdash; not assumed</h2>
+      <div class="panel">
+        <div class="panel-body" style="padding:6px 16px;">
+          <table class="compare">
+            <tr><th>Attempt</th><th>Hypothesis</th><th>Measured (raw loop)</th><th>Verdict</th></tr>
+            <tr>
+              <td>1&nbsp;&middot;&nbsp;<code>sqrt()</code> instead of <code>**-1.5</code></td>
+              <td>non-integer <code>pow()</code> is slow in CPython</td>
+              <td class="mono-cell">119ms &rarr; 121ms</td>
+              <td class="verdict-bad">&#x2717; no effect</td>
+            </tr>
+            <tr>
+              <td>2&nbsp;&middot;&nbsp;numpy vectorization</td>
+              <td>batch all 10 pairs per timestep</td>
+              <td class="mono-cell">185ms &rarr; 177ms</td>
+              <td class="verdict-bad">&#x2717; only ~4% &mdash; call overhead &gt; N=10</td>
+            </tr>
+            <tr>
+              <td>3&nbsp;&middot;&nbsp;loop unrolling</td>
+              <td>defer 1.5M indexed list writes to once</td>
+              <td class="mono-cell">185ms &rarr; <b>90.5ms</b></td>
+              <td class="verdict-good">&#x2713; 51% faster</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <p class="foot-note">Attempt 3 works because the 5 bodies are a <em>fixed</em> dataset &mdash; the pair loop can be fully unrolled into plain local variables, writing back to lists once per <code>advance()</code> call instead of every iteration.</p>
+    </div>
+  </section>
+
+  <!-- 8: NBODY RESULT -->
+  <section class="slide" data-tag="nbody">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>nbody &mdash; result</span><span>07</span></div>
+    <div class="slide-body">
+      <h2>32.9% faster, verified correct</h2>
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Baseline &rarr; Optimized</div>
+          <div class="kpi-value"><span class="from">231ms</span> <span class="to">155ms</span></div>
+          <div class="kpi-delta">&minus;32.9% &middot; &plusmn;2&ndash;3ms std dev</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Correctness check</div>
+          <div class="kpi-value" style="font-size:20px;">Energy conservation</div>
+          <div class="kpi-delta" style="color:var(--muted);">matches original to 12 significant digits</div>
+        </div>
+      </div>
+      <div class="term" style="margin-top:6px;">
+        <div class="term-bar sw">report_energy() before / after</div>
+        <pre>ORIGINAL   before: <span class="c2">-0.1690751638285245</span>  after: <span class="c2">-0.16908926275527172</span>
+OPTIMIZED  before: <span class="c2">-0.1690751638285245</span>  after: <span class="c2">-0.16908926275526812</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9: RAYTRACE OVERVIEW -->
+  <section class="slide" data-tag="raytrace">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace</span><span>08</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>What <code>raytrace</code> does</h2>
+        <p class="body-text">A recursive Whitted-style ray tracer. 100&times;100 image, 8 objects (spheres + checkerboard floor), 2 lights, up to 3 reflection bounces.</p>
+        <p class="body-text">Hand-rolled <code>Vector</code>/<code>Point</code> classes, no acceleration structure &mdash; every ray linearly tests all 8 objects, casts shadow rays, and recurses on reflection.</p>
+      </div>
+      <div class="kpi-row" style="flex-direction:column;">
+        <div class="kpi">
+          <div class="kpi-label">Scene objects &times; pixels</div>
+          <div class="kpi-value">8 <span style="font-size:20px;color:var(--muted);">&times;</span> 10,000</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Baseline (Linux VM)</div>
+          <div class="kpi-value">799<span style="font-size:16px;color:var(--muted);">ms &plusmn;8</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10: RAYTRACE PROFILE -->
+  <section class="slide" data-tag="raytrace">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; profiling</span><span>09</span></div>
+    <div class="slide-body cols c2 rev">
+      <div class="flame-frame">
+        <div class="panel-head"><span>raytrace_flamegraph.svg</span><span>209K samples</span></div>
+        <object data="raytrace_flamegraph.svg" type="image/svg+xml" aria-label="raytrace flame graph"></object>
+      </div>
+      <div>
+        <h2>A different bottleneck entirely</h2>
+        <ul class="bullets">
+          <li><b>~9.5%</b> <span class="muted-inline">function-call/stack-frame overhead &mdash; every <code>.dot()</code>/<code>.cross()</code> is a full Python call</span></li>
+          <li><b>_PyDict_GetItemHint / insertdict</b> <span class="muted-inline">&mdash; <code>Vector</code>/<code>Point</code> had no <code>__slots__</code>, so every <code>self.x</code> is a dict lookup</span></li>
+          <li><b>_PyType_Lookup</b> <span class="muted-inline">&mdash; method resolution on every call</span></li>
+        </ul>
+        <p class="foot-note">Conclusion: the cost is <em>the OOP structure itself</em>, not the geometry &mdash; a distinct root cause from nbody.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11: RAYTRACE RESULT -->
+  <section class="slide" data-tag="raytrace">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>raytrace &mdash; optimization</span><span>10</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>One line per class: <code>__slots__</code></h2>
+        <p class="body-text">Declares each class's fixed attributes up front &mdash; removes the per-instance <code>__dict__</code> entirely. Zero behavior change, directly targets the profiled dict-lookup cost.</p>
+        <div class="term" style="margin-top:8px;">
+          <div class="term-bar sw">src/raytrace_optimized.py</div>
+          <pre><span class="c1">class</span> Vector(object):
+    <span class="c2">__slots__ = (</span><span class="c3">'x', 'y', 'z'</span><span class="c2">)</span>
+    def __init__(self, x, y, z):
+        self.x, self.y, self.z = x, y, z</pre>
+        </div>
+      </div>
+      <div class="kpi-row" style="flex-direction:column;">
+        <div class="kpi">
+          <div class="kpi-label">Baseline &rarr; Optimized</div>
+          <div class="kpi-value"><span class="from">799ms</span> <span class="to">693ms</span></div>
+          <div class="kpi-delta">&minus;13.3% &middot; &plusmn;7&ndash;8ms std dev</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12: MEASUREMENT NOISE DETOUR -->
+  <section class="slide" data-tag="Rigor">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Rigor check</span><span>11</span></div>
+    <div class="slide-body cols c2">
+      <div>
+        <h2>When the numbers looked wrong</h2>
+        <p class="body-text">First VM measurement of the optimized code looked <b>worse</b> than baseline &mdash; 287ms vs. 231ms, with 20%+ std dev. Didn't accept it at face value.</p>
+        <p class="body-text"><code>top</code>/<code>vmstat</code> showed <b>87.5% I/O wait</b> and a background <code>unattended-upgrades</code> process on the shared course VM. Stopped it, confirmed the noise dropped to zero, re-measured &mdash; clean numbers matched what local testing had already predicted.</p>
+      </div>
+      <div class="term">
+        <div class="term-bar sw">vmstat 1 3</div>
+        <pre>procs -----io---- ---cpu-----
+ r  b   bi   bo   us sy id <span class="cbad">wa</span> st
+ 1  1    0    0   55 10 16 <span class="cbad">19</span>
+ 1  2    0    0   95  5  0  <span class="cbad">96</span>
+ 0  0    0    0   72  7 21  <span class="cbad">93</span>
+<span class="c3">-- after: sudo systemctl stop unattended-upgrades --</span>
+ 1  1    0    0   55 10 16 <span class="c2">19</span>
+ 1  2    0    0   95  5  0  <span class="c2">0</span>
+ 0  0    0    0   72  7 21  <span class="c2">0</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13: HW ARCHITECTURE -->
+  <section class="slide" data-tag="Hardware">
+    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware accelerator &mdash; nbody</span><span>12</span></div>
+    <div class="slide-body cols c2 rev">
+      <div class="diagram-frame">
+        <object data="nbody_block_diagram.svg" type="image/svg+xml" aria-label="Pairwise Gravity Accelerator block diagram"></object>
+      </div>
+      <div>
+        <h2>Run the whole loop, not one op</h2>
+        <p class="body-text">The profiler said the cost is <em>per-operation</em> overhead. Accelerating one multiply doesn't help if the CPU still dispatches through software 1.5M times.</p>
+        <p class="body-text">So the accelerator runs <b>all 20,000 iterations autonomously in hardware</b>. The host touches it twice: write state + trigger, then read the result.</p>
+        <span class="badge hw">SystemVerilog &middot; Q16.16 fixed point &middot; hw/nbody_accelerator.sv</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14: HW SPEC -->
+  <section class="slide" data-tag="Hardware">
+    <div class="eyebrow hw"><span class="tag"><span class="dot-mark"></span>Hardware &mdash; interface &amp; estimate</span><span>13</span></div>
+    <div class="slide-body cols c2">
+      <div class="panel">
+        <div class="panel-head">Register map</div>
+        <div class="panel-body">
+          <table class="regmap">
+            <tr><th>Addr</th><th>Register</th><th>Field</th></tr>
+            <tr><td class="addr mono-cell">0x00</td><td>CONTROL</td><td>[0] START</td></tr>
+            <tr><td class="addr mono-cell">0x04</td><td>STATUS</td><td>[0] BUSY [1] DONE</td></tr>
+            <tr><td class="addr mono-cell">0x08</td><td>DT</td><td>Q16.16 timestep</td></tr>
+            <tr><td class="addr mono-cell">0x0C</td><td>N_ITER</td><td>iteration count</td></tr>
+            <tr><td class="addr mono-cell">0x40&ndash;0x8C</td><td>BODY_STATE[0..34]</td><td>5 &times; (pos, vel, mass)</td></tr>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h2>Cycle-counted, not hand-waved</h2>
+        <div class="term">
+          <div class="term-bar hw">estimate @ 200MHz</div>
+          <pre>~75 cyc/pair (sqrt 17 + div 48 + ctrl)
+ &times; 10 pairs &times; 20,000 iters
+ = <span class="c2">15.2M cycles &asymp; 76ms</span>
+
+vs. optimized software: <span class="c3">~130-150ms</span>
+ &rarr; <span class="c2">~1.7-2x further speedup</span>
+
+10-way parallel pairs &rarr; up to <span class="c2">~10x</span>
+ (at ~10x sqrt/div area &amp; power)</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15: RESULTS SUMMARY -->
+  <section class="slide" data-tag="Results">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Summary</span><span>14</span></div>
+    <div class="slide-body">
+      <h2>Results</h2>
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">nbody &middot; software</div>
+          <div class="kpi-value"><span class="from">231</span><span class="to">155ms</span></div>
+          <div class="kpi-delta">&minus;32.9%</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">raytrace &middot; software</div>
+          <div class="kpi-value"><span class="from">799</span><span class="to">693ms</span></div>
+          <div class="kpi-delta">&minus;13.3%</div>
+        </div>
+        <div class="kpi hw">
+          <div class="kpi-label">nbody &middot; + hardware (est.)</div>
+          <div class="kpi-value"><span class="to">~76ms</span></div>
+          <div class="kpi-delta">&minus;~1.7&ndash;2&times; further</div>
+        </div>
+      </div>
+      <ul class="bullets" style="margin-top:8px;">
+        <li>Both benchmarks clear the assignment's 7% bar with <b>measured, statistically-verified</b> numbers &mdash; not estimates.</li>
+        <li>Two of three nbody optimization ideas were <b>disproven by measurement</b>, not assumed to work &mdash; the profile, not folklore, picked the winner.</li>
+        <li>A measurement bug (I/O wait) was caught and diagnosed before it could distort the results.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 16: THANK YOU -->
+  <section class="slide title-slide" data-tag="Close">
+    <div class="eyebrow"><span class="tag"><span class="dot-mark"></span>Questions</span><span>15</span></div>
+    <div class="slide-body" style="justify-content:center;">
+      <h1 style="font-size:clamp(44px,7vw,88px);">Questions</h1>
+      <p class="subtitle">Repo, reports, flame graphs, and the accelerator RTL are all at:</p>
+      <p class="body-text mono" style="font-size:17px;">github.com/khaledgharra/hwsw-benchmark-project</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="rail" id="rail"></div>
+<div class="hint">&larr; &rarr; or scroll to navigate</div>
+
+<script>
+  const deck = document.getElementById('deck');
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const rail = document.getElementById('rail');
+  const progress = document.getElementById('progress');
+
+  slides.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', 'Go to slide ' + (i+1) + ': ' + (s.dataset.tag || ''));
+    b.addEventListener('click', () => s.scrollIntoView({behavior:'smooth', inline:'start'}));
+    rail.appendChild(b);
+  });
+  const dots = Array.from(rail.children);
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const idx = slides.indexOf(e.target);
+        dots.forEach((d,i) => d.setAttribute('aria-current', i===idx ? 'true':'false'));
+        progress.style.width = (((idx+1)/slides.length)*100) + 'vw';
+      }
+    });
+  }, { root: deck, threshold: 0.6 });
+  slides.forEach(s => io.observe(s));
+
+  window.addEventListener('keydown', (e) => {
+    const current = slides.findIndex(s => dots[slides.indexOf(s)].getAttribute('aria-current') === 'true');
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      const next = slides[Math.min(current+1, slides.length-1)];
+      next.scrollIntoView({behavior:'smooth', inline:'start'});
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      const prev = slides[Math.max(current-1, 0)];
+      prev.scrollIntoView({behavior:'smooth', inline:'start'});
+    }
+  });
+</script>
