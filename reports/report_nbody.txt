@@ -5,41 +5,154 @@ Report: nbody
 --------------------------------------------------------------------------------
 1. OVERVIEW
 --------------------------------------------------------------------------------
-- Description of the benchmark:
-- Libraries used:
-- Data structures / algorithms employed:
+Description:
+  The nbody benchmark simulates the gravitational interaction between the Sun
+  and four outer planets (Jupiter, Saturn, Uranus, Neptune), starting from
+  real astronomical position/velocity/mass data. It performs a classic
+  direct pairwise-force N-body integration: for every pair of bodies (10
+  unique pairs among 5 bodies), it computes the Newtonian gravitational
+  force and updates both bodies' velocities, then advances all positions
+  from their velocities (a leapfrog-style Euler integrator). The timed hot
+  path (bench_nbody -> advance(dt=0.01, iterations=20000)) runs this
+  10-pair update loop 20,000 times per benchmark iteration.
+
+Libraries used:
+  Pure Python standard library only (math for sqrt). No third-party
+  dependencies beyond the pyperf measurement harness itself
+  (pyproject.toml lists only "pyperf").
+
+Data structures / algorithms employed:
+  - BODIES: dict mapping body name -> (position [x,y,z] list, velocity
+    [x,y,z] list, mass float). Positions/velocities are plain mutable
+    Python lists, updated in place.
+  - PAIRS: all 5-choose-2 = 10 unique body pairs, precomputed once at
+    import time via a hand-rolled combinations() (avoids depending on
+    itertools for older-Python compatibility).
+  - Algorithm: direct O(N^2) pairwise Newtonian gravity (fine since N=5,
+    no tree/approximation needed), classic leapfrog integration split
+    into a velocity-update pass (advance's pair loop) followed by a
+    position-update pass.
 
 --------------------------------------------------------------------------------
 2. INITIAL ANALYSIS
 --------------------------------------------------------------------------------
-- perf stat / perf record results:
-- Flame graph findings:
-- Identified hotspots:
+Environment: course VM (naranja14, QEMU/KVM guest), Ubuntu 22.04,
+Linux 5.15.0-1080-kvm, Python 3.10.12, single vCPU.
+
+Baseline (python3 -m pyperformance run --bench nbody):
+  231 ms +- 2 ms
+
+perf record: hardware `cycles`-based sampling produced ZERO samples in
+this KVM guest (a known issue: counting mode works, but the PMI interrupt
+that sampling needs is often not forwarded correctly to KVM guests).
+Confirmed with `perf stat -e cycles,instructions` (worked fine for
+counting) vs. `perf record` (0 samples). Fixed by switching to a
+software-timer event instead of a hardware one:
+  perf record -e cpu-clock -F 999 -g -o perf.data -- \
+    python3-dbg -m pyperformance run --bench nbody
+
+Flame graph: reports/nbody_artifacts/nbody_flamegraph.svg
+Full report: reports/nbody_artifacts/perf_report.txt
+
+Profiling breakdown (perf report --stdio, cpu-clock event, 49K samples):
+  - ~38% raw CPython bytecode interpreter dispatch (_PyEval_EvalFrameDefault).
+    Inner call-stack frames under this show as unresolved hex addresses -
+    this is a known perf/CPython interaction: ceval.c's main loop uses
+    computed gotos, which breaks frame-pointer-based stack unwinding.
+  - Named C-level hotspots (the actionable part):
+      binary_op1 / binary_iop1        ~5.8%  generic arithmetic dispatch
+      float_mul / float_add / float_sub ~6.5% actual floating-point math
+      list_ass_item / list_ass_subscript ~3.7% indexed list writes
+        (v1[0] -= ..., r[0] += ...)
+      _Py_CheckSlotResult             ~3.7%  operator-protocol slot checks
+      PyFloat_FromDouble / float_dealloc ~6.3% float object alloc/dealloc
+      _PyNumber_Index / PyNumber_AsSsize_t ~4%  int-subscript index
+        conversion overhead (from the literal-int list indexing)
+
+Identified hotspots / conclusion:
+  The benchmark is not slow because the math is hard (N=5, O(N^2) is
+  trivial). It is slow because of interpreter-level overhead PER
+  operation: every float is a heap-allocated object (PyFloat_FromDouble/
+  float_dealloc churn), every arithmetic op goes through generic
+  type-dispatch (binary_op1, _Py_CheckSlotResult), and critically, the
+  ~75 indexed list reads/writes per timestep (v1[0] -=, r[0] +=, done
+  20,000 times = ~1.5M indexed operations total) show up directly as
+  list_ass_item / list_ass_subscript / PyNumber_AsSsize_t - this became
+  the target for optimization.
 
 --------------------------------------------------------------------------------
 3. OPTIMIZATIONS
 --------------------------------------------------------------------------------
-- Changes made:
-- External libraries / algorithms used:
-- Rationale:
+Three approaches were tried, in order, and measured - not just assumed:
+
+Attempt 1 - sqrt() instead of pow():
+  Replaced `(dx*dx+dy*dy+dz*dz) ** (-1.5)` with `1.0/(d2*sqrt(d2))`, on
+  the general assumption that CPython's non-integer float ** float is
+  slower than math.sqrt(). Measured locally: NO improvement (119ms ->
+  121ms). The perf profile never actually showed float_pow as a hot
+  function, so this guess wasn't grounded in the data. Kept the sqrt form
+  in the final version (it isn't slower), but it was not the real fix.
+
+Attempt 2 - numpy vectorization:
+  Batched all 10 pairwise interactions per timestep into numpy array
+  operations (broadcasting a 5x5x3 difference tensor, einsum for the
+  pairwise force sum). Measured locally: only ~4% faster (0.185s ->
+  0.177s for the raw advance() loop in isolation). With only 5 bodies (10
+  pairs), numpy's per-call dispatch overhead (several numpy calls per
+  timestep x 20,000 timesteps) cancels out most of the vectorization
+  benefit - a textbook case of vectorization overhead dominating at very
+  small N.
+
+Attempt 3 (final, adopted) - loop unrolling / local-variable hoisting:
+  Since this benchmark's 5 bodies are a FIXED, hardcoded dataset (not a
+  variable N), the 10-pair loop in advance() was fully unrolled into 10
+  straight-line blocks operating on plain local variables (fast
+  LOAD_FAST/STORE_FAST bytecodes) instead of list subscripts. The
+  position/velocity lists are read into locals once at the start of
+  advance() and written back once at the end, instead of being read/
+  written on every one of the 20,000 iterations. This directly targets
+  the list_ass_item/list_ass_subscript/PyNumber_AsSsize_t costs
+  identified in profiling. See src/nbody_optimized.py.
+
+  Trade-off: this trades generality (the unrolled advance() only works
+  for exactly these 5 named bodies) for speed - acceptable here because
+  the benchmark itself always models this exact fixed solar-system
+  dataset; it is not parameterized by N.
+
+Correctness check: report_energy() (potential + kinetic energy, a
+standard N-body conservation check) was compared before/after for both
+the original and optimized implementations:
+  ORIGINAL   before: -0.1690751638285245  after: -0.16908926275527172
+  OPTIMIZED  before: -0.1690751638285245  after: -0.16908926275526812
+Identical starting energy; final energy matches to ~12 significant
+digits (the tiny residual difference is expected floating-point
+summation-order noise from reordering the arithmetic, not a bug).
 
 --------------------------------------------------------------------------------
 4. PERFORMANCE COMPARISON
 --------------------------------------------------------------------------------
-- Baseline vs optimized results:
-- % improvement:
+First measurement attempt was flagged unstable by pyperf (20-31% std
+dev) due to I/O wait from the shared course VM host (top showed 87.5%
+"wa"; a background `unattended-upgrades` process was found running).
+Stopped it (`sudo systemctl stop unattended-upgrades`), confirmed I/O
+wait dropped to ~0 via vmstat, and re-measured:
+
+  Baseline:  231 ms +- 2 ms
+  Optimized: 155 ms +- 3 ms
+  Improvement: (231 - 155) / 231 = 32.9% faster
+
+Statistically clean (small, comparable std dev on both runs; not flagged
+unstable). Well above the assignment's 7% threshold.
+
+Raw data: reports/baseline.json, reports/nbody_optimized.json
+Comparison command: python3 -m pyperf compare_to baseline.json nbody_optimized.json
 
 --------------------------------------------------------------------------------
 5. HARDWARE ACCELERATION PROPOSAL
 --------------------------------------------------------------------------------
-- Target component:
-- Inputs / outputs (widths, interfaces, frequency):
-- Architecture (datapath + control):
-- HW/SW interface:
-- Acceleration justification + expected speedup:
-- Block diagram: see hw/nbody_block_diagram.*
-- Performance/area/power trade-offs:
+[TODO - see project's next phase]
 
 --------------------------------------------------------------------------------
 6. CONCLUSION
 --------------------------------------------------------------------------------
+[TODO - fill in after hardware proposal is finalized]

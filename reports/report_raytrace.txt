@@ -5,41 +5,153 @@ Report: raytrace
 --------------------------------------------------------------------------------
 1. OVERVIEW
 --------------------------------------------------------------------------------
-- Description of the benchmark:
-- Libraries used:
-- Data structures / algorithms employed:
+Description:
+  The raytrace benchmark is a classic recursive Whitted-style ray tracer.
+  It renders a 100x100 pixel image of a scene containing 7 spheres and a
+  checkerboard floor (a Halfspace), lit by 2 point lights, to a
+  byte-buffer canvas (written out as a .ppm file). For every pixel it
+  casts a primary ray, linearly tests it against every scene object for
+  the nearest intersection, shades the hit point using a Phong-style
+  model (specular + Lambertian diffuse + ambient), casts shadow rays
+  toward each light, and recursively traces reflected rays up to 3
+  bounces deep.
+
+Libraries used:
+  Pure Python standard library only (array for the pixel buffer, math
+  for sqrt/trig). No third-party dependencies (pyproject.toml lists only
+  "pyperf").
+
+Data structures / algorithms employed:
+  - Hand-rolled Vector/Point classes (3D math: dot, cross, add, sub,
+    scale, normalize, reflect) - originally with no __slots__, so every
+    instance carried a full per-instance __dict__.
+  - Sphere / Halfspace: geometric primitives implementing
+    intersectionTime(ray) (ray-sphere quadratic / ray-plane intersection)
+    and normalAt(point).
+  - Scene: holds the camera (position/lookAt/fieldOfView), object list,
+    and lights; render() builds one Ray per pixel and calls the
+    recursive rayColour().
+  - Canvas: array.array('B', ...) flat RGB byte buffer.
+  - SimpleSurface / CheckerboardSurface: shading model (specular
+    reflection recurses into rayColour(); Lambertian diffuse sums
+    per-light contributions after a shadow-ray visibility test; ambient
+    is a flat term).
+  - Algorithm complexity: O(pixels x objects x (1 + lights) x
+    recursion_depth) with NO acceleration structure (no BVH/kd-tree) -
+    every ray does a linear scan of all 8 scene objects.
 
 --------------------------------------------------------------------------------
 2. INITIAL ANALYSIS
 --------------------------------------------------------------------------------
-- perf stat / perf record results:
-- Flame graph findings:
-- Identified hotspots:
+Environment: course VM (naranja14, QEMU/KVM guest), Ubuntu 22.04,
+Linux 5.15.0-1080-kvm, Python 3.10.12, single vCPU.
+
+Baseline (python3 -m pyperformance run --bench raytrace):
+  799 ms +- 8 ms
+
+perf record: same KVM vPMU/PMI limitation as nbody (perf stat with
+hardware cycles worked; perf record with hardware cycles produced 0
+samples). Used the software cpu-clock event instead:
+  perf record -e cpu-clock -F 999 -g -o perf.data -- \
+    python3-dbg -m pyperformance run --bench raytrace
+
+Flame graph: reports/raytrace_artifacts/raytrace_flamegraph.svg
+Full report: reports/raytrace_artifacts/perf_report.txt
+
+Profiling breakdown (perf report --stdio, cpu-clock event, 209K samples):
+  - ~26% raw CPython bytecode interpreter dispatch
+    (_PyEval_EvalFrameDefault) - same computed-goto unwinding limitation
+    as nbody, higher than nbody's 38%->26% here because more of
+    raytrace's cost is attributable to named functions below.
+  - ~9.5% function-call / stack-frame machinery (_PyEval_Vector,
+    _PyEval_MakeFrameVector, frame_dealloc, is_tstate_valid). This did
+    NOT appear in nbody's profile - it's specific to raytrace's OOP
+    design, where every vector op (.dot(), .cross(), .scale(),
+    .normalized(), .reflectThrough()) is a full Python function call
+    that pushes/pops a stack frame.
+  - ~4.54% in _PyType_Lookup - method resolution overhead: every
+    `.dot(...)`-style call requires looking up the method on the class
+    via the MRO.
+  - ~4.39% in _PyDict_GetItemHint / insertdict - instance attribute
+    dictionary access. Vector/Point/Sphere/etc. had no __slots__, so
+    every instance carries a per-instance __dict__, and every
+    self.x/self.y/self.z access is a dict lookup instead of a
+    fixed-offset slot read.
+  - ~4.66% binary_op1 / float_mul - same generic arithmetic-dispatch tax
+    seen in nbody.
+
+Identified hotspots / conclusion:
+  Unlike nbody, raytrace's bottleneck is dominated by its OOP structure
+  itself, not raw arithmetic: method-call/frame overhead (_PyEval_Vector
+  family) and per-instance dict-backed attribute access (_PyDict_
+  GetItemHint/insertdict/_PyType_Lookup) together account for roughly
+  18% of total time. Since every vector operation allocates a new
+  Vector/Point object and every attribute access goes through a
+  dictionary, the clearest, safest, behavior-preserving fix is adding
+  __slots__ to every hand-rolled class - a well-documented CPython
+  optimization for attribute-heavy classes that removes the per-instance
+  __dict__ entirely without changing any observable behavior.
 
 --------------------------------------------------------------------------------
 3. OPTIMIZATIONS
 --------------------------------------------------------------------------------
-- Changes made:
-- External libraries / algorithms used:
-- Rationale:
+Change made: added `__slots__` declaring exactly the instance attributes
+each class uses (Vector: x,y,z; Point: x,y,z; Sphere: centre,radius;
+Halfspace: point,normal; Ray: point,vector; Canvas: bytes,width,height;
+Scene: objects,lightPoints,position,lookingAt,fieldOfView,
+recursionDepth; SimpleSurface: baseColour,specularCoefficient,
+lambertCoefficient,ambientCoefficient; CheckerboardSurface (subclass):
+otherColour,checkSize). No algorithmic, structural, or behavioral change
+- purely a class-definition-level optimization. See
+src/raytrace_optimized.py.
+
+External libraries used: none - this is a pure CPython-level
+optimization (no numpy or other third-party libraries were needed or
+would help here, since the bottleneck is object/attribute-model
+overhead, not numeric throughput).
+
+Rationale: directly targeted at the profiling data's
+_PyDict_GetItemHint/insertdict/_PyType_Lookup hotspots. __slots__
+replaces each instance's dict-based attribute storage with fixed-offset
+C-level slots, which is faster to read/write and removes the
+per-instance dict's memory overhead - especially impactful here because
+the scene allocates and destroys enormous numbers of Vector/Point
+objects (every dot/cross/add/sub/scale/normalize call creates a new one).
 
 --------------------------------------------------------------------------------
 4. PERFORMANCE COMPARISON
 --------------------------------------------------------------------------------
-- Baseline vs optimized results:
-- % improvement:
+Same I/O-wait instability described in report_nbody.txt affected the
+first measurement attempt (1.24 sec +- 0.25 sec, 20% std dev - not
+usable). After stopping the interfering unattended-upgrades service and
+confirming I/O wait dropped to ~0 (vmstat), re-measured cleanly:
+
+  Baseline:  799 ms +- 8 ms
+  Optimized: 693 ms +- 7 ms
+  Improvement: (799 - 693) / 799 = 13.3% faster
+
+Statistically clean (comparable std dev on both runs). Above the
+assignment's 7% threshold.
+
+Note on magnitude: a local sanity test on a different machine (Apple
+Silicon Mac, Python 3.9) showed a larger ~37% improvement (533ms ->
+338ms) for the same code change. The direction (faster) is consistent
+across both environments; the magnitude differs because __slots__'s
+relative benefit depends on the CPU microarchitecture and CPython
+version's relative cost of dict lookups vs. other overhead - this is
+expected, not a discrepancy in the optimization itself. The VM
+measurement (Linux, matching the profiling environment) is the
+authoritative number used here.
+
+Raw data: reports/baseline.json, reports/raytrace_optimized.json
+Comparison command: python3 -m pyperf compare_to baseline.json raytrace_optimized.json
 
 --------------------------------------------------------------------------------
 5. HARDWARE ACCELERATION PROPOSAL
 --------------------------------------------------------------------------------
-- Target component:
-- Inputs / outputs (widths, interfaces, frequency):
-- Architecture (datapath + control):
-- HW/SW interface:
-- Acceleration justification + expected speedup:
-- Block diagram: see hw/raytrace_block_diagram.*
-- Performance/area/power trade-offs:
+[TODO - see project's next phase]
 
 --------------------------------------------------------------------------------
 6. CONCLUSION
 --------------------------------------------------------------------------------
+[TODO - fill in after hardware proposal is finalized]
