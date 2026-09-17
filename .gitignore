@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# perf / profiling output
+*.data
+*.data.old
+perf.data*
+flamegraph.html
+
+# VM images and large binaries
+*.img
+*.qcow2
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/

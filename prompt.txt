@@ -1,0 +1,11 @@
+# AI Tool Prompt Log
+
+Document every prompt/instruction given to AI tools (ChatGPT, GitHub Copilot,
+Claude, etc.) while working on this project, in chronological order.
+
+Format:
+
+## <date>
+Tool: <tool name>
+Prompt: <exact prompt used>
+Purpose: <what you were trying to accomplish>
