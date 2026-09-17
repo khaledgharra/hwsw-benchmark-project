@@ -9,9 +9,7 @@ This repository contains the analysis, optimization, and hardware acceleration
 proposal for two benchmarks selected from the `pyperformance` framework, as
 required by the course final project.
 
-Selected benchmarks: TBD (2 of: Raytrace, Deepcopy, Mdp, Pathlib,
-Pickle/pickle_dict, Pyflate, unpack_sequence, tornado_http, sqlite_synth,
-Nbody, Btree, deepblue, go)
+Selected benchmarks: **Raytrace** and **Nbody**
 
 ## Repository Structure
 
