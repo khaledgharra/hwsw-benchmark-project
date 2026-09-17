@@ -32,8 +32,21 @@ Each `scripts/script_<benchmark>.sh` handles:
 4. Post-optimization benchmark execution and performance comparison
 
 See each `reports/report_<benchmark>.txt` for the overview, profiling
-analysis, optimizations applied, performance comparison, and hardware
-acceleration proposal for that benchmark.
+analysis, optimizations applied, and performance comparison for that
+benchmark. Both nbody (32.9% faster) and raytrace (13.3% faster) clear
+the assignment's 7% improvement threshold.
+
+The hardware acceleration proposal (`hw/nbody_accelerator.sv`,
+`hw/nbody_block_diagram.svg`) targets nbody only, per course guidance
+that one proposal is sufficient across the two selected benchmarks. It
+is a Pairwise Gravity Accelerator: fixed-point (Q16.16) hardware that
+holds all 5 bodies' state on-chip and runs the benchmark's entire
+20,000-iteration force-update loop autonomously between two MMIO
+round-trips, rather than accelerating a single arithmetic operation the
+CPU would still have to dispatch through software for every one of the
+~1.5M individual operations profiling identified as the real cost. Full
+architecture, I/O spec, and a cycle-counted speedup estimate are in
+`reports/report_nbody.txt` Section 5.
 
 ## AI Tool Usage
 

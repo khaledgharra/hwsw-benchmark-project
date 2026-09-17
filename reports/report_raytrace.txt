@@ -149,9 +149,37 @@ Comparison command: python3 -m pyperf compare_to baseline.json raytrace_optimize
 --------------------------------------------------------------------------------
 5. HARDWARE ACCELERATION PROPOSAL
 --------------------------------------------------------------------------------
-[TODO - see project's next phase]
+Not applicable for this benchmark. Per course guidance, a full hardware
+acceleration proposal (Verilog/SystemVerilog implementation, block
+diagram, I/O spec, etc.) is only required for one of the two selected
+benchmarks; that proposal was submitted for nbody (see
+reports/report_nbody.txt Section 5 and hw/nbody_accelerator.sv).
+
+For reference, if a hardware target were proposed for raytrace, the
+profiling data (Section 2) points to a ray-sphere intersection unit
+(the dot-product + discriminant/sqrt computation in Sphere.
+intersectionTime(), tested against every object for every one of the
+10,000 primary rays, plus every shadow and reflection ray) as the
+natural candidate - conceptually similar to a GPU "RT core," since it
+is the same fixed, small floating-point kernel (a handful of multiplies/
+adds plus one sqrt) applied independently and repeatedly across rays
+and objects.
 
 --------------------------------------------------------------------------------
 6. CONCLUSION
 --------------------------------------------------------------------------------
-[TODO - fill in after hardware proposal is finalized]
+Profiling (perf, cpu-clock sampling) showed raytrace's cost is
+concentrated in Python's OOP machinery itself - method-call/stack-frame
+overhead (~9.5%, from every vector operation being a full function call)
+and per-instance dict-backed attribute access (~4.4% dict lookups + 4.5%
+method resolution), rather than in the underlying geometric math. Adding
+__slots__ to every hand-rolled class (Vector, Point, Sphere, Halfspace,
+Ray, Scene, SimpleSurface, CheckerboardSurface) directly targeted this,
+replacing per-instance dict storage with fixed-offset slots with zero
+behavioral change, and produced a verified 13.3% improvement (799ms ->
+693ms) on the course Linux VM - comfortably above the assignment's 7%
+threshold, and consistent in direction (though larger in magnitude,
+37%) with a local sanity check on different hardware. Combined with
+nbody's 32.9% improvement, both selected benchmarks clear the "two or
+more benchmarks with at least 7% improvement" bar with real,
+statistically-verified measurements rather than estimates.

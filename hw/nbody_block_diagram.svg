@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" font-family="Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill:#f4f6fb; stroke:#334; stroke-width:1.5; }
+    .core { fill:#eaf2ff; stroke:#2a5bd7; stroke-width:1.5; }
+    .unit { fill:#fff7e6; stroke:#b8860b; stroke-width:1.2; }
+    .lbl { font-size:14px; fill:#111; }
+    .sub { font-size:11px; fill:#444; }
+    .title { font-size:16px; font-weight:bold; fill:#111; }
+    line, path.wire { stroke:#333; stroke-width:1.5; fill:none; marker-end:url(#arrow); }
+  </style>
+
+  <text x="20" y="28" class="title">N-Body Pairwise Gravity Accelerator - Block Diagram</text>
+
+  <!-- Host CPU -->
+  <rect x="20" y="60" width="180" height="90" rx="6" class="box"/>
+  <text x="110" y="95" class="lbl" text-anchor="middle">Host CPU</text>
+  <text x="110" y="115" class="sub" text-anchor="middle">(Python / pyperformance)</text>
+  <text x="110" y="132" class="sub" text-anchor="middle">nbody driver</text>
+
+  <!-- MMIO bus -->
+  <rect x="260" y="60" width="140" height="90" rx="6" class="box"/>
+  <text x="330" y="95" class="lbl" text-anchor="middle">MMIO Bus</text>
+  <text x="330" y="115" class="sub" text-anchor="middle">(AXI-Lite /</text>
+  <text x="330" y="130" class="sub" text-anchor="middle">Avalon-MM wrapper)</text>
+
+  <line x1="200" y1="105" x2="260" y2="105" class="wire"/>
+  <line x1="260" y1="120" x2="200" y2="120" class="wire" marker-end="url(#arrow)"/>
+  <text x="230" y="98" class="sub" text-anchor="middle">wr</text>
+  <text x="230" y="138" class="sub" text-anchor="middle">rd</text>
+
+  <!-- nbody_accelerator top -->
+  <rect x="450" y="50" width="420" height="530" rx="8" class="core"/>
+  <text x="660" y="75" class="lbl" text-anchor="middle" font-weight="bold">nbody_accelerator (top)</text>
+
+  <line x1="400" y1="105" x2="450" y2="105" class="wire"/>
+  <text x="425" y="98" class="sub" text-anchor="middle">reg</text>
+  <text x="425" y="118" class="sub" text-anchor="middle">R/W</text>
+
+  <!-- Register bank -->
+  <rect x="475" y="95" width="370" height="70" rx="6" class="unit"/>
+  <text x="660" y="118" class="lbl" text-anchor="middle">Control / Status Registers</text>
+  <text x="660" y="136" class="sub" text-anchor="middle">CONTROL(start) · STATUS(busy,done) · DT · N_ITER</text>
+  <text x="660" y="152" class="sub" text-anchor="middle">addr 0x00 - 0x0C</text>
+
+  <!-- body_regfile -->
+  <rect x="475" y="185" width="370" height="80" rx="6" class="unit"/>
+  <text x="660" y="210" class="lbl" text-anchor="middle">body_regfile</text>
+  <text x="660" y="228" class="sub" text-anchor="middle">5 bodies x (pos.xyz, vel.xyz, mass) = 35 x 32-bit words</text>
+  <text x="660" y="244" class="sub" text-anchor="middle">host port (MMIO 0x40-0x8C)  |  core port (r/w during run)</text>
+
+  <line x1="660" y1="165" x2="660" y2="185" class="wire"/>
+
+  <!-- nbody_core -->
+  <rect x="475" y="285" width="370" height="270" rx="6" class="unit"/>
+  <text x="660" y="308" class="lbl" text-anchor="middle" font-weight="bold">nbody_core (control FSM + datapath)</text>
+
+  <line x1="660" y1="265" x2="660" y2="285" class="wire"/>
+
+  <rect x="495" y="325" width="150" height="45" rx="4" class="box"/>
+  <text x="570" y="350" class="sub" text-anchor="middle">pair_rom</text>
+  <text x="570" y="363" class="sub" text-anchor="middle">10 fixed (i,j) pairs</text>
+
+  <rect x="655" y="325" width="170" height="45" rx="4" class="box"/>
+  <text x="740" y="350" class="sub" text-anchor="middle">Sequencer FSM</text>
+  <text x="740" y="363" class="sub" text-anchor="middle">pair_idx, iter_cnt</text>
+
+  <line x1="570" y1="370" x2="570" y2="390" class="wire"/>
+  <line x1="740" y1="370" x2="740" y2="390" class="wire"/>
+
+  <rect x="495" y="390" width="330" height="40" rx="4" class="box"/>
+  <text x="660" y="415" class="sub" text-anchor="middle">dx,dy,dz subtract -&gt; dx²,dy²,dz² -&gt; d² = sum (fp_mul / adders)</text>
+
+  <line x1="660" y1="430" x2="660" y2="450" class="wire"/>
+
+  <rect x="495" y="450" width="150" height="40" rx="4" class="box"/>
+  <text x="570" y="475" class="sub" text-anchor="middle">fp_sqrt (~17 cyc)</text>
+
+  <rect x="655" y="450" width="170" height="40" rx="4" class="box"/>
+  <text x="740" y="475" class="sub" text-anchor="middle">fp_div (~48 cyc)</text>
+
+  <line x1="570" y1="490" x2="570" y2="510" class="wire"/>
+  <line x1="740" y1="490" x2="740" y2="510" class="wire"/>
+
+  <rect x="495" y="510" width="330" height="35" rx="4" class="box"/>
+  <text x="660" y="533" class="sub" text-anchor="middle">mass mul -&gt; velocity update -&gt; write back to body_regfile</text>
+
+  <line x1="660" y1="545" x2="660" y2="285" class="wire" stroke-dasharray="4,3"/>
+  <text x="800" y="300" class="sub" fill="#a33">loop 10 pairs x N iters</text>
+
+  <!-- IRQ -->
+  <line x1="450" y1="90" x2="200" y2="90" class="wire"/>
+  <text x="320" y="80" class="sub" text-anchor="middle">irq (done)</text>
+
+</svg>
