@@ -1,11 +1,153 @@
 # AI Tool Prompt Log
 
-Document every prompt/instruction given to AI tools (ChatGPT, GitHub Copilot,
-Claude, etc.) while working on this project, in chronological order.
+Every prompt/instruction given to AI tools while working on this project, in chronological order.
 
 Format:
-
 ## <date>
 Tool: <tool name>
 Prompt: <exact prompt used>
 Purpose: <what you were trying to accomplish>
+
+---
+
+## 2026-08-10
+Tool: Claude
+Prompt: "I have a python benchmark called raytrace from the pyperformance suite. Here is the code: [pasted full raytrace source]. I need to optimize it and get at least 7% speedup. Where do I even start?"
+Purpose: Get an overview of the benchmark structure and figure out a profiling strategy before touching anything.
+
+## 2026-08-10
+Tool: Claude
+Prompt: "ok so how do I run perf on this? its running on a KVM virtual machine on the course VM naranja14"
+Purpose: Figure out the right perf command to use since hardware counters don't work on KVM guests.
+
+## 2026-08-10
+Tool: Claude
+Prompt: "perf record -e cycles is giving me 0 samples, what do I do"
+Purpose: Fix the profiling setup after hardware PMU events failed on the VM.
+
+## 2026-08-11
+Tool: Claude
+Prompt: "here is the perf report output from running raytrace with cpu-clock: [pasted full perf report --stdio output]. what is taking the most time and why?"
+Purpose: Have Claude read and interpret the raw perf report to identify the actual bottleneck.
+
+## 2026-08-11
+Tool: Claude
+Prompt: "what is _PyDict_GetItemHint and why is it showing up so much? is that the self.x self.y self.z accesses?"
+Purpose: Understand what the C-level function name in the profile actually means in terms of Python code.
+
+## 2026-08-11
+Tool: Claude
+Prompt: "what about _PyType_Lookup, that also shows up a lot"
+Purpose: Understand the method resolution overhead showing up alongside the dict lookup costs.
+
+## 2026-08-11
+Tool: Claude
+Prompt: "so if i add __slots__ to the Vector and Point classes will that fix both of those?"
+Purpose: Proposed the __slots__ fix and asked whether it would address the identified hotspots.
+
+## 2026-08-11
+Tool: Claude
+Prompt: "what exactly is __slots__, how does it work under the hood"
+Purpose: Understand the mechanism before applying it, not just copy-paste a fix.
+
+## 2026-08-12
+Tool: Claude
+Prompt: "I added __slots__ to Vector and Point. should I add it to the other classes too like Sphere Ray Canvas etc?"
+Purpose: Decide whether to apply __slots__ to all classes or just the hottest ones.
+
+## 2026-08-12
+Tool: Claude
+Prompt: "here is the updated code with __slots__ on all 9 classes: [pasted raytrace_optimized.py]. does this look correct? anything I missed?"
+Purpose: Code review before running the benchmark to catch any mistakes with slots and inheritance.
+
+## 2026-08-13
+Tool: Claude
+Prompt: "baseline was 799ms, after __slots__ I got 693ms. is that 13% right? also the std dev stayed around 7-8ms on both which seems good"
+Purpose: Verify the speedup calculation and confirm the measurement is statistically clean.
+
+## 2026-08-13
+Tool: Claude
+Prompt: "can you generate the flame graph svg from perf.data and explain what I am looking at"
+Purpose: Understand the flame graph output and how it relates to the perf report numbers.
+
+## 2026-08-14
+Tool: Claude
+Prompt: "write the report section for raytrace covering: what the benchmark does, how I profiled it, what I found, what I changed and why, and the results"
+Purpose: Draft the written report section for submission.
+
+---
+
+## 2026-08-18
+Tool: Claude
+Prompt: "now I need to do the same for nbody. here is the source code: [pasted nbody source]. baseline is 231ms. same VM. run me through how to profile it"
+Purpose: Start the nbody optimization with the same profiling approach used for raytrace.
+
+## 2026-08-18
+Tool: Claude
+Prompt: "here is the perf report for nbody: [pasted perf report --stdio output, ~49k samples]. what stands out?"
+Purpose: Get an interpretation of the nbody profile before deciding on an optimization direction.
+
+## 2026-08-18
+Tool: Claude
+Prompt: "list_ass_item and PyNumber_AsSsize_t keep showing up, what are those exactly"
+Purpose: Understand what those C-level function names mean in terms of the Python code running.
+
+## 2026-08-19
+Tool: Claude
+Prompt: "so the v1[0] -= dx*b*m2 style list writes, those are what list_ass_item is? how many of those happen per benchmark run"
+Purpose: Quantify the overhead — how many indexed list operations actually happen across 20,000 iterations.
+
+## 2026-08-19
+Tool: Claude
+Prompt: "what if I replace the ** (-1.5) with math.sqrt, would that help? I heard pow is slow in python"
+Purpose: Proposed the sqrt optimization as a first attempt based on general Python performance knowledge.
+
+## 2026-08-19
+Tool: Claude
+Prompt: "I tried the sqrt version, locally it went from 119ms to 121ms, basically nothing. why didn't it work?"
+Purpose: Understand why the sqrt change had no effect even though it seemed like a good idea.
+
+## 2026-08-20
+Tool: Claude
+Prompt: "what about numpy? can I vectorize the 10 pairwise interactions into a numpy array operation instead of a python loop"
+Purpose: Proposed numpy vectorization as the second optimization attempt.
+
+## 2026-08-20
+Tool: Claude
+Prompt: "numpy only gave me 4% improvement, 0.185s to 0.177s. I thought vectorization was supposed to be fast"
+Purpose: Understand why numpy didn't help much despite being a vectorized approach.
+
+## 2026-08-20
+Tool: Claude
+Prompt: "so if the problem is the list indexing v1[0] v1[1] v1[2] done 1.5 million times, what if I just manually unroll the loop? the 5 bodies never change anyway"
+Purpose: Proposed loop unrolling as a third approach after the first two failed to deliver.
+
+## 2026-08-21
+Tool: Claude
+Prompt: "can you write the unrolled advance() for me, all 10 pairs as straight line code using local variables"
+Purpose: Generate the unrolled version since writing 10 pairs of boilerplate by hand is error-prone.
+
+## 2026-08-21
+Tool: Claude
+Prompt: "how do I verify the unrolled version gives the same answer as the original? I dont want to submit something that is faster but wrong"
+Purpose: Design a correctness check before benchmarking the optimized version.
+
+## 2026-08-21
+Tool: Claude
+Prompt: "original energy before: -0.1690751638285245 after: -0.16908926275527172. optimized energy before: -0.1690751638285245 after: -0.16908926275526812. is the tiny difference ok or is something wrong"
+Purpose: Verify whether the small floating-point difference in final energy is expected or a bug.
+
+## 2026-08-22
+Tool: Claude
+Prompt: "pyperf flagged my first run as unstable, 20-31% std dev. what could cause that on the VM"
+Purpose: Diagnose the noisy benchmark measurement before trusting any numbers.
+
+## 2026-08-22
+Tool: Claude
+Prompt: "top shows 87.5% wa (io wait). found unattended-upgrades running in the background. killed it, std dev back to +-2ms. result is 231ms -> 155ms, is that 32.9%?"
+Purpose: Confirm the final measurement is clean and verify the speedup percentage.
+
+## 2026-08-22
+Tool: Claude
+Prompt: "write the full report for nbody: overview, profiling setup, what perf showed, the three attempts and why two failed, the final result, and the correctness check"
+Purpose: Draft the nbody report section for submission.
