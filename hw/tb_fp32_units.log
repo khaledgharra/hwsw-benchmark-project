@@ -1,0 +1,42 @@
+# Real output from: iverilog -g2012 -o sim tb_fp32_units.sv nbody_accelerator_fp32.sv && vvp sim
+#
+# 14/17 exact matches. The 3 FAILs below are all off by exactly 1 ULP (the
+# smallest possible floating-point difference) - expected, since this
+# design truncates instead of implementing IEEE-754 round-to-nearest (a
+# documented simplification, not a bug). Getting to this point required
+# finding and fixing 3 real RTL bugs (fp_sqrt exponent overflow, fp_add's
+# leading-zero loop, fp_div's iteration count) - see the commit history
+# and hw/nbody_accelerator_fp32.sv's inline "BUG FIX" comments.
+# The $fatal/"TESTBENCH FAILED" at the end is the testbench's own
+# behavior when any check fails, by design - it does not mean the
+# accelerator is broken; see the exact-vs-1-ULP breakdown above.
+
+--- fp_mul (combinational) ---
+PASS  2.0 * 3.0 = 6.0              got=40c00000 expect=40c00000
+PASS  1.5 * 1.5 = 2.25             got=40100000 expect=40100000
+PASS  0.01 * 4.0 = 0.04            got=3d23d70a expect=3d23d70a
+FAIL  39.478 * 0.01                got=3eca209a expect=3eca209b
+
+--- fp_add (combinational) ---
+PASS  3.0 + 4.0 = 7.0              got=40e00000 expect=40e00000
+PASS  5.0 + 2.0 = 7.0              got=40e00000 expect=40e00000
+PASS  1.5 + 2.75 = 4.25            got=40880000 expect=40880000
+PASS  10.0 + (-3.0) = 7.0          got=40e00000 expect=40e00000
+
+--- fp_sqrt (iterative, 25 cycles) ---
+PASS  sqrt(4.0)=2.0 [exp odd]      got=40000000 expect=40000000
+PASS  sqrt(2.0)=1.41... [even]     got=3fb504f3 expect=3fb504f3
+PASS  sqrt(16.0)=4.0 [odd]         got=40800000 expect=40800000
+PASS  sqrt(0.25)=0.5 [odd]         got=3f000000 expect=3f000000
+PASS  sqrt(0.5)=0.707... [even]    got=3f3504f3 expect=3f3504f3
+PASS  sqrt(9.0)=3.0 [even]         got=40400000 expect=40400000
+
+--- fp_div (iterative, 26 cycles) ---
+PASS  6.0 / 2.0 = 3.0              got=40400000 expect=40400000
+FAIL  1.0 / 3.0 = 0.333...         got=3eaaaaaa expect=3eaaaaab
+FAIL  0.01 / 27000.0               got=34c6d750 expect=34c6d751
+
+=== RESULTS: 14 passed, 3 failed ===
+
+FATAL: tb_fp32_units.sv:108: TESTBENCH FAILED
+       Time: 3185000  Scope: tb_fp32_units
