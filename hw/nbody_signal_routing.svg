@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" font-family="Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+  <style>
+    .top { fill:#eef2fb; stroke:#2a5bd7; stroke-width:1.6; }
+    .core { fill:#eaf2ff; stroke:#2a5bd7; stroke-width:1.3; stroke-dasharray:5,3; }
+    .inst { fill:#fff7e6; stroke:#b8860b; stroke-width:1.3; }
+    .mem { fill:#f3ffe6; stroke:#5c8a1f; stroke-width:1.3; }
+    .name { font-size:13px; font-weight:bold; fill:#111; }
+    .type { font-size:10.5px; fill:#555; font-style:italic; }
+    .sig { font-size:9.5px; fill:#444; font-family:"Courier New",monospace; }
+    .title { font-size:16px; font-weight:bold; fill:#111; }
+    line, path.w { stroke:#666; stroke-width:1.2; fill:none; marker-end:url(#arr); }
+    .w2 { stroke:#a33; }
+  </style>
+
+  <text x="20" y="26" class="title">nbody_accelerator — Instance-Level Signal Routing</text>
+  <text x="20" y="44" class="type">module instance names (u_*) and real port signal names, as wired in the source</text>
+
+  <!-- top module boundary -->
+  <rect x="15" y="60" width="970" height="645" rx="8" class="top"/>
+  <text x="500" y="82" class="name" text-anchor="middle">nbody_accelerator (top)</text>
+
+  <!-- MMIO port -->
+  <rect x="35" y="95" width="160" height="55" rx="5" class="inst"/>
+  <text x="115" y="117" class="name" text-anchor="middle">MMIO decode</text>
+  <text x="115" y="133" class="sig" text-anchor="middle">mmio_we/re/addr[8:0]</text>
+  <text x="115" y="145" class="sig" text-anchor="middle">mmio_wdata/rdata[63:0]</text>
+
+  <!-- u_regfile -->
+  <rect x="240" y="95" width="230" height="70" rx="5" class="mem"/>
+  <text x="355" y="117" class="name" text-anchor="middle">u_regfile : body_regfile</text>
+  <text x="355" y="133" class="sig" text-anchor="middle">host_we, host_addr[5:0]</text>
+  <text x="355" y="145" class="sig" text-anchor="middle">host_wdata/rdata[63:0]</text>
+  <text x="355" y="157" class="sig" text-anchor="middle">mem[0:34] (35 x 64b)</text>
+
+  <line x1="195" y1="122" x2="240" y2="122" class="w"/>
+  <text x="217" y="115" class="sig" text-anchor="middle">rf_host_*</text>
+
+  <!-- irq -->
+  <line x1="500" y1="95" x2="500" y2="70" class="w"/>
+  <line x1="500" y1="70" x2="35" y2="70" class="w"/>
+  <text x="260" y="66" class="sig">irq (1-cycle pulse on core_done)</text>
+
+  <!-- core boundary (dashed - internal to u_core) -->
+  <rect x="240" y="185" width="730" height="500" rx="8" class="core"/>
+  <text x="605" y="207" class="name" text-anchor="middle">u_core : nbody_core</text>
+
+  <line x1="355" y1="165" x2="355" y2="230" class="w"/>
+  <text x="360" y="180" class="sig">core_rdata/wdata/we/addr</text>
+
+  <!-- control signals in -->
+  <rect x="260" y="220" width="180" height="55" rx="5" class="inst"/>
+  <text x="350" y="240" class="name" text-anchor="middle" font-size="12">control in</text>
+  <text x="350" y="255" class="sig" text-anchor="middle">start, dt[63:0]</text>
+  <text x="350" y="266" class="sig" text-anchor="middle">n_iterations[31:0]</text>
+
+  <!-- pair_rom -->
+  <rect x="460" y="220" width="170" height="55" rx="5" class="inst"/>
+  <text x="545" y="242" class="name" text-anchor="middle" font-size="12">u_pair_rom</text>
+  <text x="545" y="257" class="sig" text-anchor="middle">addr[3:0] -&gt; body_i, body_j</text>
+  <text x="545" y="268" class="sig" text-anchor="middle">(pair_idx -&gt; pr_i, pr_j)</text>
+
+  <!-- FSM/sequencer -->
+  <rect x="650" y="220" width="290" height="55" rx="5" class="inst"/>
+  <text x="795" y="242" class="name" text-anchor="middle" font-size="12">FSM: state, pair_idx, sub,</text>
+  <text x="795" y="257" class="sig" text-anchor="middle">pos_step, iter_cnt, bi, bj</text>
+  <text x="795" y="268" class="sig" text-anchor="middle">21 states (S_IDLE .. S_POSUPD)</text>
+
+  <line x1="795" y1="275" x2="795" y2="300" class="w"/>
+
+  <!-- always_comb router -->
+  <rect x="620" y="300" width="320" height="46" rx="5" class="inst"/>
+  <text x="780" y="319" class="name" text-anchor="middle" font-size="12">always_comb router</text>
+  <text x="780" y="334" class="sig" text-anchor="middle">state -&gt; rf_addr, fadd_a, fadd_b, rf_wdata</text>
+
+  <line x1="440" y1="346" x2="440" y2="380" class="w"/>
+  <line x1="780" y1="346" x2="780" y2="380" class="w"/>
+
+  <!-- u_add -->
+  <rect x="270" y="380" width="180" height="80" rx="5" class="inst"/>
+  <text x="360" y="400" class="name" text-anchor="middle" font-size="12">u_add : fp_add</text>
+  <text x="360" y="418" class="sig" text-anchor="middle">a=fadd_a[63:0]</text>
+  <text x="360" y="431" class="sig" text-anchor="middle">b=fadd_b[63:0]</text>
+  <text x="360" y="444" class="sig" text-anchor="middle">s=fadd_s[63:0]  (0 cyc)</text>
+
+  <!-- u_mul -->
+  <rect x="470" y="380" width="180" height="80" rx="5" class="inst"/>
+  <text x="560" y="400" class="name" text-anchor="middle" font-size="12">u_mul : fp_mul</text>
+  <text x="560" y="418" class="sig" text-anchor="middle">a=mul_a[63:0]</text>
+  <text x="560" y="431" class="sig" text-anchor="middle">b=mul_b[63:0]</text>
+  <text x="560" y="444" class="sig" text-anchor="middle">p=mul_p[63:0]  (0 cyc)</text>
+
+  <!-- u_sqrt -->
+  <rect x="670" y="380" width="145" height="95" rx="5" class="inst"/>
+  <text x="742" y="400" class="name" text-anchor="middle" font-size="12">u_sqrt : fp_sqrt</text>
+  <text x="742" y="417" class="sig" text-anchor="middle">start=sqrt_start</text>
+  <text x="742" y="429" class="sig" text-anchor="middle">x=d2[63:0]</text>
+  <text x="742" y="441" class="sig" text-anchor="middle">result=sqrt_result</text>
+  <text x="742" y="453" class="sig" text-anchor="middle">done=sqrt_done</text>
+  <text x="742" y="467" class="sig" text-anchor="middle" fill="#a33">54 cycles</text>
+
+  <!-- u_div -->
+  <rect x="830" y="380" width="145" height="95" rx="5" class="inst"/>
+  <text x="902" y="400" class="name" text-anchor="middle" font-size="12">u_div : fp_div</text>
+  <text x="902" y="417" class="sig" text-anchor="middle">start=div_start</text>
+  <text x="902" y="429" class="sig" text-anchor="middle">a=dt, b=denom</text>
+  <text x="902" y="441" class="sig" text-anchor="middle">result=div_result</text>
+  <text x="902" y="453" class="sig" text-anchor="middle">done=div_done</text>
+  <text x="902" y="467" class="sig" text-anchor="middle" fill="#a33">55 cycles</text>
+
+  <!-- feedback into FSM -->
+  <line x1="360" y1="460" x2="360" y2="500" class="w"/>
+  <line x1="560" y1="460" x2="560" y2="500" class="w"/>
+  <line x1="742" y1="475" x2="742" y2="500" class="w"/>
+  <line x1="902" y1="475" x2="902" y2="500" class="w"/>
+
+  <rect x="290" y="500" width="640" height="50" rx="5" class="inst"/>
+  <text x="610" y="520" class="name" text-anchor="middle" font-size="12">FSM captures results into scratch registers</text>
+  <text x="610" y="537" class="sig" text-anchor="middle">dx,dy,dz,dxsq,dysq,dzsq,d2,sqrt_d2,denom,mag,b_im,b_jm,vxi..vzj,px,py,pz,x_new,y_new,z_new</text>
+
+  <line x1="610" y1="550" x2="610" y2="575" class="w2"/>
+  <text x="680" y="570" class="sig" fill="#a33">loop: next pair or next state</text>
+  <line x1="610" y1="575" x2="795" y2="575" class="w2"/>
+  <line x1="795" y1="575" x2="795" y2="275" class="w2" stroke-dasharray="3,3"/>
+
+  <!-- rf write path back to body_regfile -->
+  <rect x="290" y="600" width="640" height="46" rx="5" class="inst"/>
+  <text x="610" y="619" class="name" text-anchor="middle" font-size="12">write-back: rf_we, rf_addr[5:0], rf_wdata[63:0]</text>
+  <text x="610" y="634" class="sig" text-anchor="middle">-&gt; body_regfile.core_we / core_addr / core_wdata (S_WB_I, S_WB_J, S_POSUPD)</text>
+
+  <line x1="610" y1="600" x2="610" y2="346" class="w2" stroke-dasharray="3,3"/>
+  <line x1="440" y1="646" x2="355" y2="646" class="w"/>
+  <line x1="355" y1="646" x2="355" y2="165" class="w"/>
+  <text x="300" y="662" class="sig">core_we/addr/wdata -&gt; u_regfile</text>
+
+  <!-- busy/done out -->
+  <rect x="290" y="662" width="300" height="34" rx="5" class="inst"/>
+  <text x="440" y="683" class="name" text-anchor="middle" font-size="12">busy, done -&gt; nbody_accelerator (irq/status)</text>
+
+</svg>
