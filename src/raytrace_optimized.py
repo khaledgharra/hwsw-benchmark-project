@@ -9,7 +9,8 @@ Why: none of these classes used __slots__, so every instance carried a
 full per-instance __dict__. perf profiling (perf record -e cpu-clock)
 showed a large chunk of time in _PyDict_GetItemHint / insertdict (instance
 attribute dict lookups) and _PyType_Lookup (method resolution) - both are
-mainly caused by the lack of __slots__ combined with the sheer number of
+mainly caused 
+ the lack of __slots__ combined with the sheer number of
 Vector/Point objects allocated (every vector op returns a new object).
 __slots__ replaces the per-instance dict with fixed-offset slots, which
 is a well-documented, behavior-preserving CPython optimization for
